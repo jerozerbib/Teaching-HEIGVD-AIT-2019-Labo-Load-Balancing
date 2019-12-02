@@ -227,7 +227,7 @@ We can see that we are redirected to the other node, as a normal *Round-Robin* a
 
 So we open a third browser and connect to server.
 
-![](./assets/img/rapport/Task3_ready_other_browser_1.png)
+![](./assets/img/rapport/Task3_ready_other_browser_2.png)
 
 We see that we are redirected to *S2*.
 
@@ -267,23 +267,43 @@ After increasing the delay between each answer on *S1*, we can see that it takes
 
 ![](./assets/img/rapport/Task4_set_2500.png)
 
-The *S1* node is not even attained by the users because of the timeout. Therefore, only *S2*  is shown in the result.
+The *S1* node is not even attained by the users because of the timeout. Therefore, only *S2*  is shown in the result. 
 
 ![](./assets/img/rapport/Task4_JMeter_2500.png)
 
 **In the two previous steps, are there any error? Why?**
 
-`JMeter` does not prompt any error. 
+`JMeter` does not prompt any error.  
+
+What happens is that the load balancer, `HAProxy`, analyses the delay and thinks that the *S1* is down. Therefore, JMeter does not think that the node has a problem but it receives the information that the node is down. Therefore, it is a normal behavior.
+
+![](./assets/img/rapport/Task4_Jmeter_proof.png)
+
+As we can see, the node is found to be down
 
 **Update the HAProxy configuration to add a weight to your nodes. For that, add `weight [1-256]` where the value of weight is between the two values (inclusive). Set `s1` to 2 and `s2` to 1. Redo a run with 250ms delay.**
 
+![](./assets/img/rapport/Task4_weights_proof.png)
+
+![](./assets/img/rapport/Task4_delay_proof.png)
+
+We set a delay of 250 ms for the two nodes.
+
+ ![](./assets/img/rapport/Tasks4_JMETER_with_cookies.png)
+
+The balance is not respected at all. As the weight condition is greater in the *S1* node, it is normal for a load balancer to put more requests directed towards the one that can hold more. As we set a delay on the two nodes, the execution is even longer than before. 
+
 **Now, what happened when the cookies are cleared between each requests and the delay is set to 250ms ? We expect just one or two sentence to  summarize your observations of the behavior with/without cookies.**
 
+![](./assets/img/rapport/Task4_weight_Jmeter.png)
 
+We can see that the *S1* node is more reached than *S2*. The reason for that is that the weight of the node is heavier in *S1* and cookies are reseting between each requests. 
+
+We can see that the balance is almost evenly shared with the cookie being reseted between every request. 
 
 ## Task 5 : Balancing strategies
 
-**Briefly explain the strategies you have chosen and why you have chosen them.**
+**Briefly explain the strategies you have chosen and why you have chosen them.**  
 
 The two strategies we chose are : 
 
@@ -292,8 +312,50 @@ The two strategies we chose are :
 
 We chose those two strategies because : 
 
--  `static-rr` is almost the same as the one we saw during this lab and we wanted to know what the difference might be with the one 
+-  `static-rr` is almost the same as the one we saw during this lab and we wanted to know what the difference might be. It lies in the fact that you cannot perform any changes on the fly of the configuration. 
+-  `leastconn` seems interesting in our case because it should behave the same way that `round-robin` did. The algorithm is also dynamic so we should be able to change weights on the fly. Furthermore, it is not recommended to use it in short sessions like `HTTP`. It is more suitable for `LDAP` connections, for example. The fact that the load might not be evenly distributed in this case is a possibility which we wanted to experiment.
 
-**Provide evidences that you have played with the two strategies (configuration done, screenshots, ...)**
+**Provide evidences that you have played with the two strategies (configuration done, screenshots, ...)**  
 
-**Compare the both strategies and conclude which is the best for this lab (not necessary the best at all).**
+- `static-rr` : We configured the load balancing in `static-rr`. ![](./assets/img/rapport/Task5_Config_static.png)
+Then we launched the docker containers in order to test if the configuration was up. 
+As the behavior is pretty similar we had to test that if we modified on the fly the configuration and see if the changes were effective.
+First we checked the configuration : 
+![](./assets/img/rapport/Task5_static_prior_remove.png)
+We can see that the configuration is up and running in `static-rr`.  
+Then we log into the HAProxy's Docker and modify the configuration.
+![](./assets/img/rapport/Task5_docker_static.png)
+![](./assets/img/rapport/Task5_static_remove_node.png)
+We removed a node from the load-balancing configuration and we waited a few minutes before reloading the configuration page.
+After reloading it, we checked if the node *S2* was removed or not. 
+![](./assets/img/rapport/Task5_static_after_remove.png)
+We can see that *S2* is still present in the config.  
+- `leastconn` : We configured the load balancing in `leastconn` mode.
+![](./assets/img/rapport/Task5_least.png) 
+We removed the cookie for the test. 
+We'll set them back later on. 
+We can see that the configuration is up and running : 
+![](./assets/img/rapport/Task5_config_least.png)
+Then we connect for the first time. 
+![](./assets/img/rapport/Task5_least_firstConn.png)  
+Then the second.  
+![](./assets/img/rapport/Task5_least_second_conn.png)
+
+We can see that the behavior is, expected the same as the `roundrobin` mode because we have two nodes.
+
+Let's see what happens if we enable the cookies !
+![](./assets/img/rapport/Task5_leastconn_with_cookies.png)
+ 
+ We then proceed to connect to the main page and refresh two times.
+ 
+ ![](./assets/img/rapport/Task5_leastconn_with_cookies_first_conn.png)
+ ![](./assets/img/rapport/Task5_leastconn_with_cookies_second.png)
+ ![](./assets/img/rapport/Task5_leastconn_with_cookies_third.png)
+ 
+ We can see that the cookie is always taken into account. 
+ It overlaps the configuration as in `round robin` mode. 
+
+
+**Compare the both strategies and conclude which is the best for this lab (not necessary the best at all).**  
+For this lab, we think that the best mode would be `leatconn` as it is essentially the same behavior as `round-robin`.
+`static-rr` is too constraint of a mode to make change on the fly.
