@@ -247,6 +247,9 @@ We can see a different ID but accessing the same server.
 
 ## Task 4 : Round robin in degraded mode.
 
+**We based our task on a previous version of the questions so we set the requests to execute 10 threads.**
+**We did this because if we didn't we couldn't see the load-balancing operation with one thread**
+
 ***Remark*: Make sure you have the cookies are kept between two requests.**
 
 **Be sure the delay is of 0 milliseconds is set on `s1`. Do a run to have base data to compare with the next experiments.**
