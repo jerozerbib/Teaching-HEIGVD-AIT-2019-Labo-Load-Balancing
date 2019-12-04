@@ -1,6 +1,20 @@
-# AIT - Labo 3
+## 
+
+# Labo 03 - Load balancing
 
 # Authors : Adrien Barth, Jeremy Zerbib
+
+## Introduction
+
+The goal of this lab is to be familiar with a load-balancing tool like `HAProxy`. 
+
+We did all the asked tasks in this lab, going from installing the tools to tweaking the configuration files and playing with them.
+
+The goals in details were : 
+
+- Deploy a web application in a two-tier architecture for scalability
+- Configure a load balancer
+- Performance-test a load-balanced web application
 
 ## Task 1: Install the tools
 
@@ -102,7 +116,124 @@ If there is, then nothing is created and the server follows the session.
 
 If there isn't a cookie setup, then the proxy will create a cookie and create a new session.
 
-The modified file, `haproxy.cfg`, is located in the `ha` folder under the same name.
+```bash
+# Global configuration for HAProxy
+# http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#3
+global
+    # Bind UNIX socket to get various stats
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#stats
+    stats socket /var/run/haproxy.sock mode 600 level admin
+
+    # Bind TCP port to get various stats
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#stats
+    stats socket ipv4@0.0.0.0:9999 level admin
+
+    # Define the timeout on the stats
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#3.1-stats%20timeout
+    stats timeout 30s
+
+    # Configure the way the logging is done
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#log
+    log 127.0.0.1 local1 notice
+
+# Configure defaults for all the proxies configuration (applied for all the next sections in the configuration)
+# http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4
+defaults
+    # Enable logging
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4-log
+    log     global
+
+    # The default mode for all the services
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4-bind
+    mode    http
+
+    # Enable the logging of HTTP requests
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4-option%20httplog
+    option  httplog
+
+    # Enable the logging of null connections
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4-option%20dontlognull
+    option  dontlognull
+
+    # Configure the timeout to connect to a server
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4-timeout%20connect
+    timeout connect 5000
+
+    # Configure the timeout before cutting the connection of a client
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4-timeout%20client
+    timeout client  50000
+
+    # Same kind of configuration for the servers side
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4-timeout%20server
+    timeout server  50000
+
+# Open the metrics HAProxy page on the port 1936 on any network interface on the host
+# http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4
+listen stats *:1936
+    # Enable HAProxy to serve stats about himself and the nodes
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4-stats%20enable
+    stats enable
+
+    # Define the URI to access the stats
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4-stats%20uri
+    stats uri /
+
+    # Avoid leaking more info than necessary with hiding the version of HAProxy
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4-stats%20hide-version
+    stats hide-version
+
+# Define the frontend configuration. In fact, that's the part that configure how HAProxy will handle
+# the requests from the outside world:
+# http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4
+frontend localnodes
+    # Bind the port 80 to listen incoming outside connections (from the outside world)
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4-bind
+    bind *:80
+
+    # Define which protocol is enabled on the binded ports.
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4-mode
+    mode http
+
+    # Use the backend configuration references by the backend name section in this configuration
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4-default_backend
+    default_backend nodes
+
+# Define the backend configuration. In fact, that's the part that configure what is not directly
+# accessible from the outside of the network.
+# http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4
+backend nodes
+    # Define the protocol accepted
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4-mode
+    mode http
+
+    # Define the way the backend nodes are checked to know if they are alive or down
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4-option%20httpchk
+    option httpchk HEAD /
+
+    # Define the balancing policy
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#balance
+    balance roundrobin
+
+    # Automatically add the X-Forwarded-For header
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4-option%20forwardfor
+    # https://en.wikipedia.org/wiki/X-Forwarded-For
+    option forwardfor
+
+    cookie SERVERID insert indirect nocache
+
+    # With this config, we add the header X-Forwarded-Port
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4-http-request
+    http-request set-header X-Forwarded-Port %[dst_port]
+
+    # Define the list of nodes to be in the balancing mechanism
+    # http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4-server
+    server s1 ${WEBAPP_1_IP}:3000 check cookie s1
+    server s2 ${WEBAPP_2_IP}:3000 check cookie s2
+
+# Other links you will need later for this lab
+#
+# About cookies: http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#4-cookie
+```
 
 **Explain what is the behavior when you open and refresh the URL http://192.168.42.42 in your browser. Add screenshots to complement your explanations. We expect that you take a deeper a look at session management.**
 
@@ -348,13 +479,13 @@ We can see that the behavior is, expected the same as the `roundrobin` mode beca
 
 Let's see what happens if we enable the cookies !
 ![](./assets/img/rapport/Task5_leastconn_with_cookies.png)
- 
+
  We then proceed to connect to the main page and refresh two times.
- 
+
  ![](./assets/img/rapport/Task5_leastconn_with_cookies_first_conn.png)
  ![](./assets/img/rapport/Task5_leastconn_with_cookies_second.png)
  ![](./assets/img/rapport/Task5_leastconn_with_cookies_third.png)
- 
+
  We can see that the cookie is always taken into account. 
  It overlaps the configuration as in `round robin` mode. 
 
@@ -362,3 +493,7 @@ Let's see what happens if we enable the cookies !
 **Compare the both strategies and conclude which is the best for this lab (not necessary the best at all).**  
 For this lab, we think that the best mode would be `leatconn` as it is essentially the same behavior as `round-robin`.
 `static-rr` is too constraint of a mode to make change on the fly.
+
+## Conclusion
+
+To conclude this lab, we now know how to use and configure the `HAProxy` tool. We know which load-balancing strategy is the best to use and in which case to use it.
